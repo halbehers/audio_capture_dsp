@@ -8,8 +8,8 @@
 namespace audiocapture
 {
 
-// Taps the audio output of an arbitrary OS process via the macOS CoreAudio process-tap API
-// (macOS 14.2+). Not tied to any particular target process or product - give it a process ID and
+// Taps the audio output of an arbitrary OS process.
+// Not tied to any particular target process or product - give it a process ID and
 // a callback, and it forwards deinterleaved float audio blocks as they arrive.
 class SystemAudioTap
 {

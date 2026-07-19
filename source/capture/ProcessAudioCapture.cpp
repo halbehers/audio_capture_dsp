@@ -17,7 +17,7 @@ void ProcessAudioCapture::startCapture()
 {
     if (! SystemAudioTap::isSupported())
     {
-        DBG("ProcessAudioCapture: system audio capture unsupported on this OS (requires macOS 14.2+)");
+        DBG("ProcessAudioCapture: system audio capture unsupported on this OS");
         return;
     }
 
