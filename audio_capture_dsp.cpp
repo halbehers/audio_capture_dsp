@@ -15,4 +15,13 @@
 
 // Capture
 #include "source/capture/ProcessAudioCapture.cpp"
-#include "source/capture/SystemAudioTap.mm"
+
+#if JUCE_MAC
+ #include "source/capture/native/SystemAudioTap_mac.mm"
+#elif JUCE_WINDOWS
+ #include "source/capture/native/SystemAudioTap_windows.cpp"
+#elif JUCE_LINUX
+ #include "source/capture/native/SystemAudioTap_linux.cpp"
+#else
+ #include "source/capture/native/SystemAudioTap_stub.cpp"
+#endif

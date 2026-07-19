@@ -1,8 +1,8 @@
 # Audio Capture DSP - JUCE module
 
 A JUCE module providing a generic, resampling producer/consumer audio-capture buffer with
-built-in latency monitoring, plus a macOS system-audio process tap and a reusable retry/lifecycle
-base class for tapping an arbitrary OS process's audio.
+built-in latency monitoring, plus a cross-platform system-audio process tap and a reusable
+retry/lifecycle base class for tapping an arbitrary OS process's audio.
 
 ---
 
@@ -28,8 +28,8 @@ base class for tapping an arbitrary OS process's audio.
 This JUCE module factors out the audio-capture pipeline into a standalone, reusable module: given
 a stream of audio blocks arriving at an arbitrary (possibly changing) sample rate, buffer and resample
 them to a fixed target rate, hand them back out on demand, and track how long they sat in the pipeline.
-On top of that generic buffer, it also ships the macOS-specific pieces needed to source that stream from
-another process's system audio output.
+On top of that generic buffer, it also ships the platform-specific pieces needed to source that
+stream from another process's system audio output, on macOS, Windows, or Linux.
 
 Nothing in this module is tied to any particular product - it doesn't know what it's capturing
 audio *from*, only how to buffer, resample, and monitor it once it arrives.
@@ -44,9 +44,21 @@ audio *from*, only how to buffer, resample, and monitor it once it arrives.
 
 `juce_core` `juce_audio_basics` `juce_events`
 
-**Platform**: macOS only. `audiocapture::SystemAudioTap` and `audiocapture::ProcessAudioCapture`
-wrap the CoreAudio process-tap API (macOS 14.2+) and the module declares `OSXFrameworks: CoreAudio
-AudioToolbox`, so linking it requires building on Apple. See [Limitations](#limitations).
+**Platform**: macOS, Windows, and Linux. `audiocapture::SystemAudioTap` and
+`audiocapture::ProcessAudioCapture` wrap a different per-process audio-capture API on each
+platform, with per-platform build requirements the module declares itself (`OSXFrameworks`,
+`windowsLibs`, `linuxPackages`), so a host project just links `audiocapture::audio_capture_dsp`
+and gets whichever backend matches its target:
+
+- **macOS 14.2+** — the CoreAudio process-tap API (`OSXFrameworks: CoreAudio AudioToolbox`).
+- **Windows 10 build 20348+ ("2020 Update")** — the WASAPI process-loopback API
+  (`windowsLibs: Ole32`).
+- **Linux** — PipeWire, matching the target process's node by PID (`linuxPackages:
+  libpipewire-0.3`). Requires a running PipeWire session at runtime, not just the dev headers at
+  build time; a pure ALSA/PulseAudio-only system has no equivalent capability.
+
+On any other platform, or below the version floor above, `SystemAudioTap::isSupported()` returns
+`false` and `start()` is a no-op returning `false` - see [Limitations](#limitations).
 
 ---
 
@@ -165,13 +177,14 @@ double latencyMs = monitor.consumeLatencyMs(unitsJustConsumed); // consumer side
 
 ### `audiocapture::SystemAudioTap`
 
-Taps another OS process's audio output via the macOS CoreAudio process-tap API, given just a
+Taps another OS process's audio output via the platform's native per-process capture API
+(CoreAudio on macOS, WASAPI process loopback on Windows, PipeWire on Linux), given just a
 process ID and a callback:
 
 ```c++
 audiocapture::SystemAudioTap tap;
 
-if (audiocapture::SystemAudioTap::isSupported()) // requires macOS 14.2+
+if (audiocapture::SystemAudioTap::isSupported()) // see Requirements & Dependencies for the floor on each platform
 {
     tap.start(targetProcessID, [](const float* const* channelData, int numChannels, int numSamples, double sampleRate)
     {
@@ -213,11 +226,17 @@ capture.stopCapture();
 
 ## Limitations
 
-- **macOS only.** `SystemAudioTap` and `ProcessAudioCapture` require macOS 14.2+ and the CoreAudio
-  process-tap API; on older macOS or non-Apple platforms `SystemAudioTap::isSupported()` returns
-  `false` and `start()` is a no-op returning `false`, but **linking** this module at all still
-  requires building on Apple (`OSXFrameworks: CoreAudio AudioToolbox`). `AudioCapture` and
+- **Version/runtime floor per platform.** `SystemAudioTap` requires macOS 14.2+, Windows 10 build
+  20348+, or Linux with a reachable PipeWire session; below that floor (or on any other platform)
+  `isSupported()` returns `false` and `start()` is a no-op returning `false`. `AudioCapture` and
   `LatencyMonitor` alone have no such restriction.
+- **Linux needs a running PipeWire session, not just the build-time dependency.** `linuxPackages:
+  libpipewire-0.3` gets the module linking; a pure ALSA/PulseAudio-only system (no PipeWire daemon
+  running) will still report `isSupported() == false` at runtime.
+- **The Windows and Linux backends are unverified on real hardware.** Both were written against
+  the documented WASAPI process-loopback and PipeWire APIs but haven't been compiled or run on an
+  actual Windows or Linux machine - test before relying on them in production, and report back any
+  link-library or API corrections needed.
 - **Fixed internal buffer sizes.** `AudioCapture`'s FIFO capacity, pending-sample buffers, and
   `LatencyMonitor`'s ring capacity are sized for typical DAW block sizes/sample rates; extreme
   values (very large block sizes, very low target sample rates) aren't validated.

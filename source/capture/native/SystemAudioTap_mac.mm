@@ -1,20 +1,15 @@
-#include "../../include/capture/SystemAudioTap.h"
-
-#if JUCE_MAC
+#include "../../../include/capture/SystemAudioTap.h"
 
 #import <CoreAudio/AudioHardware.h>
 #import <CoreAudio/AudioHardwareTapping.h>
 #import <CoreAudio/CATapDescription.h>
 #import <Foundation/Foundation.h>
 
-#endif
-
 namespace audiocapture
 {
 
 struct SystemAudioTap::Impl
 {
-#if JUCE_MAC
     AudioObjectID processObjectID = kAudioObjectUnknown;
     AudioObjectID tapObjectID = kAudioObjectUnknown;
     AudioObjectID aggregateDeviceID = kAudioObjectUnknown;
@@ -26,7 +21,6 @@ struct SystemAudioTap::Impl
     static constexpr int maxFramesPerCallback = 1 << 14;
     float deinterleavedLeft[maxFramesPerCallback];
     float deinterleavedRight[maxFramesPerCallback];
-#endif
 
     AudioCallback callback;
     bool running = false;
@@ -41,10 +35,8 @@ SystemAudioTap::~SystemAudioTap()
 
 bool SystemAudioTap::isSupported()
 {
-#if JUCE_MAC
     if (@available(macOS 14.2, *))
         return true;
-#endif
     return false;
 }
 
@@ -55,7 +47,6 @@ bool SystemAudioTap::isRunning() const
 
 void SystemAudioTap::stop()
 {
-#if JUCE_MAC
     if (! _impl->running)
         return;
 
@@ -82,10 +73,7 @@ void SystemAudioTap::stop()
     _impl->processObjectID = kAudioObjectUnknown;
     _impl->callback = nullptr;
     _impl->running = false;
-#endif
 }
-
-#if JUCE_MAC
 
 namespace
 {
@@ -113,13 +101,10 @@ namespace
     }
 }
 
-#endif
-
 bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
 {
     stop();
 
-#if JUCE_MAC
     if (! isSupported())
     {
         DBG("SystemAudioTap: unsupported OS (requires macOS 14.2+)");
@@ -263,10 +248,6 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
 
     _impl->running = true;
     return true;
-#else
-    juce::ignoreUnused(targetProcessID, callback);
-    return false;
-#endif
 }
 
 }
