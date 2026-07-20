@@ -26,8 +26,9 @@ double LatencyMonitor::consumeLatencyMs(juce::int64 unitsConsumed)
     if (writeIdx < 0)
         return 0.0; // nothing produced yet
 
-    // Walk the read cursor forward (never backward) to the earliest capture whose cumulative
-    // count covers the units consumed so far, without ever reading past the producer's index.
+    if (unitsConsumed <= 0 && _cumulativeUnitsConsumed >= _ring[(size_t) writeIdx].cumulativeUnitsProduced)
+        return 0.0;
+
     while (_readCursor != writeIdx &&
            _ring[(size_t) _readCursor].cumulativeUnitsProduced < _cumulativeUnitsConsumed)
     {

@@ -15,12 +15,8 @@ namespace audiocapture::dsp
 class LatencyMonitor
 {
 public:
-    // Producer side. unitsProduced is the number of units produced *since the last call*, not a
-    // running total.
     void recordProduced(juce::int64 unitsProduced);
 
-    // Consumer side. unitsConsumed is the number of units consumed *since the last call*, not a
-    // running total. Returns the current dwell-time estimate in milliseconds.
     double consumeLatencyMs(juce::int64 unitsConsumed);
 
 private:
@@ -35,10 +31,8 @@ private:
     std::array<Capture, ringCapacity> _ring {};
     std::atomic<int> _writeIndex { -1 }; // -1 == "nothing recorded yet"
 
-    // Producer-only - never touched by the consumer.
     juce::int64 _cumulativeUnitsProduced = 0;
 
-    // Consumer-only - never touched by the producer.
     juce::int64 _cumulativeUnitsConsumed = 0;
     int _readCursor = 0;
 };
