@@ -19,6 +19,7 @@ retry/lifecycle base class for tapping an arbitrary OS process's audio.
   - [`acdsp::LatencyMonitor`](#acdsplatencymonitor)
   - [`audiocapture::SystemAudioTap`](#audiocapturesystemaudiotap)
   - [`audiocapture::ProcessAudioCapture`](#audiocaptureprocessaudiocapture)
+  - [`audiocapture::ProcessList`](#audiocaptureprocesslist)
 - [Limitations](#limitations)
 
 ---
@@ -59,6 +60,11 @@ and gets whichever backend matches its target:
 
 On any other platform, or below the version floor above, `SystemAudioTap::isSupported()` returns
 `false` and `start()` is a no-op returning `false` - see [Limitations](#limitations).
+
+`audiocapture::ProcessList` (macOS and Windows only for now) adds two more framework/lib
+requirements of its own: `OSXFrameworks: AppKit` and `windowsLibs: User32`. On any other platform
+(currently including Linux) `ProcessList::isSupported()` returns `false` and `getAllProcesses()`
+returns an empty list.
 
 ---
 
@@ -222,6 +228,25 @@ capture.startCapture(); // begins polling until getProcessID() succeeds and the 
 capture.stopCapture();
 ```
 
+### `audiocapture::ProcessList`
+
+Enumerates OS processes for resolving a target PID - e.g. inside a `ProcessAudioCapture::getProcessID()`
+override, or to drive a "pick an app to capture" UI. macOS and Windows only for now (see
+[Limitations](#limitations)):
+
+```c++
+// every process the OS reports
+std::vector<audiocapture::ProcessInfo> allProcesses = audiocapture::ProcessList::getAllProcesses();
+
+// only processes that look like real user-facing apps (Firefox, QuickTime, VLC, ...), not
+// background/helper processes
+std::vector<audiocapture::ProcessInfo> mainApps = audiocapture::ProcessList::getMainApplicationProcesses();
+
+// any other custom criterion
+std::vector<audiocapture::ProcessInfo> matches = audiocapture::ProcessList::filterProcesses(
+    [](const audiocapture::ProcessInfo& process) { return process.name.find("Firefox") != std::string::npos; });
+```
+
 ---
 
 ## Limitations
@@ -233,10 +258,19 @@ capture.stopCapture();
 - **Linux needs a running PipeWire session, not just the build-time dependency.** `linuxPackages:
   libpipewire-0.3` gets the module linking; a pure ALSA/PulseAudio-only system (no PipeWire daemon
   running) will still report `isSupported() == false` at runtime.
-- **The Windows and Linux backends are unverified on real hardware.** Both were written against
-  the documented WASAPI process-loopback and PipeWire APIs but haven't been compiled or run on an
-  actual Windows or Linux machine - test before relying on them in production, and report back any
-  link-library or API corrections needed.
+- **The Windows and Linux `SystemAudioTap` backends are unverified on real hardware.** Both were
+  written against the documented WASAPI process-loopback and PipeWire APIs but haven't been
+  compiled or run on an actual Windows or Linux machine - test before relying on them in
+  production, and report back any link-library or API corrections needed. The same caveat applies
+  to the Windows `ProcessList` backend.
+- **`ProcessList` is macOS and Windows only.** There's no OS-level signal on Linux for "is this
+  process a real user-facing app" the way macOS's `NSRunningApplication.activationPolicy` or
+  Windows' visible-top-level-window heuristic provide - the closest equivalent (X11/EWMH's window
+  list) silently returns nothing under Wayland, the default compositor on most current Linux
+  desktops, so it isn't implemented yet rather than shipping a filter that quietly doesn't work.
+- **`ProcessList::getAllProcesses()` is not a hot-path operation.** Each call re-walks every OS
+  process from scratch (plus, on macOS, cross-references `NSWorkspace`; on Windows, re-enumerates
+  every top-level window) - call it on demand (e.g. to populate a picker UI), not per audio block.
 - **Fixed internal buffer sizes.** `AudioCapture`'s FIFO capacity, pending-sample buffers, and
   `LatencyMonitor`'s ring capacity are sized for typical DAW block sizes/sample rates; extreme
   values (very large block sizes, very low target sample rates) aren't validated.

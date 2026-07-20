@@ -13,8 +13,8 @@
 
   dependencies:       juce_core juce_audio_basics juce_events
 
-  OSXFrameworks:      CoreAudio AudioToolbox
-  windowsLibs:        Ole32
+  OSXFrameworks:      CoreAudio AudioToolbox AppKit
+  windowsLibs:        Ole32 User32
   linuxPackages:      libpipewire-0.3
 
  END_JUCE_MODULE_DECLARATION
@@ -36,5 +36,6 @@
 // Capture
 #include "include/capture/SystemAudioTap.h"
 #include "include/capture/ProcessAudioCapture.h"
+#include "include/capture/ProcessList.h"
 
 namespace acdsp = audiocapture::dsp;

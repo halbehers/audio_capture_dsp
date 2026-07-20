@@ -25,3 +25,11 @@
 #else
  #include "source/capture/native/SystemAudioTap_stub.cpp"
 #endif
+
+#if JUCE_MAC
+ #include "source/capture/native/ProcessList_mac.mm"
+#elif JUCE_WINDOWS
+ #include "source/capture/native/ProcessList_windows.cpp"
+#else
+ #include "source/capture/native/ProcessList_stub.cpp"
+#endif
