@@ -14,7 +14,7 @@
   dependencies:       juce_core juce_audio_basics juce_events
 
   OSXFrameworks:      CoreAudio AudioToolbox AppKit
-  windowsLibs:        Ole32 User32
+  windowsLibs:        Ole32 User32 Mmdevapi
   linuxPackages:      libpipewire-0.3
 
  END_JUCE_MODULE_DECLARATION
