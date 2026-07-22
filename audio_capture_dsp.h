@@ -11,11 +11,11 @@
   license:            MIT
   minimumCppStandard: 20
 
-  dependencies:       juce_core juce_audio_basics juce_events
+  dependencies:       juce_core juce_audio_basics juce_audio_devices juce_events
 
-  OSXFrameworks:      CoreAudio AudioToolbox AppKit
+  OSXFrameworks:      CoreAudio AudioToolbox AppKit CoreMIDI
   windowsLibs:        Ole32 User32 Mmdevapi
-  linuxPackages:      libpipewire-0.3
+  linuxPackages:      libpipewire-0.3 alsa
 
  END_JUCE_MODULE_DECLARATION
 
@@ -26,6 +26,7 @@
 
 // JUCE
 #include <juce_audio_basics/juce_audio_basics.h>
+#include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_core/juce_core.h>
 #include <juce_events/juce_events.h>
 
@@ -37,5 +38,6 @@
 #include "include/capture/SystemAudioTap.h"
 #include "include/capture/ProcessAudioCapture.h"
 #include "include/capture/ProcessList.h"
+#include "include/capture/AudioOutputDeviceList.h"
 
 namespace acdsp = audiocapture::dsp;

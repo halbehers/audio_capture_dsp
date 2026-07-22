@@ -33,3 +33,5 @@
 #else
  #include "source/capture/native/ProcessList_stub.cpp"
 #endif
+
+#include "source/capture/AudioOutputDeviceList.cpp"
