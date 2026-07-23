@@ -12,15 +12,13 @@ std::vector<AudioOutputDeviceInfo> AudioOutputDeviceList::getAllDevices()
     std::vector<AudioOutputDeviceInfo> result;
 
     AudioOutputDeviceInfo noDevice;
-    noDevice.kind = AudioOutputDeviceKind::noDevice;
+    noDevice.kind = AudioOutputDeviceKind::NO_DEVICE;
     result.push_back(noDevice);
 
     AudioOutputDeviceInfo systemDefault;
-    systemDefault.kind = AudioOutputDeviceKind::systemDefault;
+    systemDefault.kind = AudioOutputDeviceKind::SYSTEM_DEFAULT;
     result.push_back(systemDefault);
 
-    // Throwaway AudioDeviceManager, only used for createAudioDeviceTypes() - never initialise()'d,
-    // so this never opens/starts an actual audio device.
     juce::AudioDeviceManager deviceManager;
     juce::OwnedArray<juce::AudioIODeviceType> types;
     deviceManager.createAudioDeviceTypes(types);
@@ -30,21 +28,17 @@ std::vector<AudioOutputDeviceInfo> AudioOutputDeviceList::getAllDevices()
         if (type == nullptr)
             continue;
 
-        type->scanForDevices(); // required before getDeviceNames()/getDefaultDeviceIndex() below
+        type->scanForDevices();
 
-        juce::StringArray outputNames = type->getDeviceNames(false); // wantInputNames=false -> output-capable
+        juce::StringArray outputNames = type->getDeviceNames(false);
         juce::StringArray inputNames  = type->getDeviceNames(true);
 
-        int defaultOutputIndex = type->getDefaultDeviceIndex(false); // index into outputNames, see header
+        int defaultOutputIndex = type->getDefaultDeviceIndex(false);
 
         for (int i = 0; i < outputNames.size(); ++i)
         {
             const juce::String& deviceName = outputNames[i];
 
-            // Duplex devices (e.g. a virtual routing device) report the identical name in both
-            // the input- and output-capable name lists; pass it as both outputDeviceName and
-            // inputDeviceName so the single created AudioIODevice reports both directions'
-            // channel counts. Simplex output-only devices get an empty inputDeviceName.
             bool isDuplex = inputNames.contains(deviceName);
             std::unique_ptr<juce::AudioIODevice> device(
                 type->createDevice(deviceName, isDuplex ? deviceName : juce::String()));
@@ -59,7 +53,7 @@ std::vector<AudioOutputDeviceInfo> AudioOutputDeviceList::getAllDevices()
                 continue; // listed as output-capable but reports zero actual output channels - skip
 
             AudioOutputDeviceInfo info;
-            info.kind = AudioOutputDeviceKind::device;
+            info.kind = AudioOutputDeviceKind::DEVICE;
             info.name = deviceName;
             info.typeName = type->getTypeName();
             info.numInputChannels = numInputChannels;
@@ -77,9 +71,9 @@ juce::String AudioOutputDeviceList::getDisplayName(const AudioOutputDeviceInfo& 
 {
     switch (device.kind)
     {
-        case AudioOutputDeviceKind::noDevice:      return "No Device";
-        case AudioOutputDeviceKind::systemDefault: return "Use System Device";
-        case AudioOutputDeviceKind::device:        break;
+        case AudioOutputDeviceKind::NO_DEVICE:      return "No Device";
+        case AudioOutputDeviceKind::SYSTEM_DEFAULT: return "Use System Device";
+        case AudioOutputDeviceKind::DEVICE:         break;
     }
 
     return device.name + " (" + juce::String(device.numInputChannels) + " In, "

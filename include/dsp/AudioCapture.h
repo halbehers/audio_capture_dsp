@@ -44,13 +44,15 @@ private:
     static constexpr int maxPendingSamples = 1 << 14;
 
     juce::AbstractFifo _fifo { fifoCapacity };
-    juce::AudioBuffer<float> _fifoBuffer { 2, fifoCapacity }; // stereo scratch storage
+    juce::AudioBuffer<float> _fifoBuffer { 2, fifoCapacity };
 
     LatencyMonitor _latencyMonitor;
     std::atomic<double> _currentLatencyMs { 0.0 };
 
     double _targetSampleRate = 44100.0;
     double _lastSourceSampleRate = 0.0;
+
+    bool _flushBacklogOnNextProcess = false;
 
     juce::LagrangeInterpolator _interpolatorLeft, _interpolatorRight;
     float _pendingLeft[maxPendingSamples];

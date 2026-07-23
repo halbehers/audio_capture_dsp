@@ -39,4 +39,12 @@ double LatencyMonitor::consumeLatencyMs(juce::int64 unitsConsumed)
     return std::max(0.0, dwellMs);
 }
 
+void LatencyMonitor::reset()
+{
+    _cumulativeUnitsProduced = 0;
+    _cumulativeUnitsConsumed = 0;
+    _readCursor = 0;
+    _writeIndex.store(-1, std::memory_order_release);
+}
+
 }
