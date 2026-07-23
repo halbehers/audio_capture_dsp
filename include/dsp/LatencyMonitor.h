@@ -19,6 +19,8 @@ public:
 
     double consumeLatencyMs(juce::int64 unitsConsumed);
 
+    void reset();
+
 private:
     struct Capture
     {

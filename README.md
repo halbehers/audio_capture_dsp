@@ -20,6 +20,7 @@ retry/lifecycle base class for tapping an arbitrary OS process's audio.
   - [`audiocapture::SystemAudioTap`](#audiocapturesystemaudiotap)
   - [`audiocapture::ProcessAudioCapture`](#audiocaptureprocessaudiocapture)
   - [`audiocapture::ProcessList`](#audiocaptureprocesslist)
+  - [`audiocapture::AudioOutputDeviceList`](#audiocaptureaudiooutputdevicelist)
 - [Limitations](#limitations)
 
 ---
@@ -43,7 +44,7 @@ audio *from*, only how to buffer, resample, and monitor it once it arrives.
 
 **JUCE Modules Dependencies**:
 
-`juce_core` `juce_audio_basics` `juce_events`
+`juce_core` `juce_audio_basics` `juce_audio_devices` `juce_events`
 
 **Platform**: macOS, Windows, and Linux. `audiocapture::SystemAudioTap` and
 `audiocapture::ProcessAudioCapture` wrap a different per-process audio-capture API on each
@@ -65,6 +66,12 @@ On any other platform, or below the version floor above, `SystemAudioTap::isSupp
 requirements of its own: `OSXFrameworks: AppKit` and `windowsLibs: User32`. On any other platform
 (currently including Linux) `ProcessList::isSupported()` returns `false` and `getAllProcesses()`
 returns an empty list.
+
+`audiocapture::AudioOutputDeviceList` pulls in `juce_audio_devices`, which itself adds
+`OSXFrameworks: CoreMIDI` and `linuxPackages: alsa` on top of the requirements above (no extra
+Windows lib - WASAPI goes through COM, already covered by `Ole32`). Unlike `ProcessList`, it's
+fully cross-platform: `juce_audio_devices` wraps CoreAudio/WASAPI+DirectSound+ASIO/ALSA+JACK
+behind one API, so there's no `isSupported()`/unsupported-platform case to handle.
 
 ---
 
@@ -247,6 +254,27 @@ std::vector<audiocapture::ProcessInfo> matches = audiocapture::ProcessList::filt
     [](const audiocapture::ProcessInfo& process) { return process.name.find("Firefox") != std::string::npos; });
 ```
 
+### `audiocapture::AudioOutputDeviceList`
+
+Enumerates audio output devices for a "pick an audio routing output" UI - e.g. a `juce::ComboBox`
+in a JUCE standalone app. Always returns a `No Device` sentinel and a `Use System Device` sentinel
+first, followed by every real output-capable device the platform reports:
+
+```c++
+std::vector<audiocapture::AudioOutputDeviceInfo> devices = audiocapture::AudioOutputDeviceList::getAllDevices();
+
+juce::ComboBox outputDeviceBox;
+for (int i = 0; i < (int) devices.size(); ++i)
+    outputDeviceBox.addItem(audiocapture::AudioOutputDeviceList::getDisplayName(devices[(size_t) i]), i + 1); // JUCE item IDs are 1-based
+
+outputDeviceBox.onChange = [&devices, &outputDeviceBox]
+{
+    const auto& chosen = devices[(size_t) outputDeviceBox.getSelectedItemIndex()];
+    // chosen.kind distinguishes the 3 cases; chosen.typeName + chosen.name identify a real
+    // device for later use with juce::AudioDeviceManager::setAudioDeviceSetup(...).
+};
+```
+
 ---
 
 ## Limitations
@@ -271,6 +299,10 @@ std::vector<audiocapture::ProcessInfo> matches = audiocapture::ProcessList::filt
 - **`ProcessList::getAllProcesses()` is not a hot-path operation.** Each call re-walks every OS
   process from scratch (plus, on macOS, cross-references `NSWorkspace`; on Windows, re-enumerates
   every top-level window) - call it on demand (e.g. to populate a picker UI), not per audio block.
+- **`AudioOutputDeviceList::getAllDevices()` is not a hot-path operation either**, and must be
+  called on the JUCE message thread. Each call rescans every `AudioIODeviceType` and briefly
+  probes each device's driver handle for its channel names - call it on demand (e.g. to populate a
+  picker UI), never from the audio capture callback path.
 - **Fixed internal buffer sizes.** `AudioCapture`'s FIFO capacity, pending-sample buffers, and
   `LatencyMonitor`'s ring capacity are sized for typical DAW block sizes/sample rates; extreme
   values (very large block sizes, very low target sample rates) aren't validated.

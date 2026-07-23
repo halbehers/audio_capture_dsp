@@ -14,6 +14,10 @@ void AudioCapture::prepare(double targetSampleRate)
     _pendingCount = 0;
     _interpolatorLeft.reset();
     _interpolatorRight.reset();
+    _fifo.reset();
+    _latencyMonitor.reset();
+
+    _flushBacklogOnNextProcess = true;
 }
 
 void AudioCapture::pushAudioBlock(const float* const* channelData, int numChannels, int numSamples, double sourceSampleRate)
@@ -86,6 +90,16 @@ int AudioCapture::process(juce::AudioBuffer<float>& destBuffer)
 {
     totalProcessCalls++;
     lastRequestedBufferSize = destBuffer.getNumSamples();
+
+    if (_flushBacklogOnNextProcess)
+    {
+        _flushBacklogOnNextProcess = false;
+
+        int flushStart1, flushSize1, flushStart2, flushSize2;
+        _fifo.prepareToRead(_fifo.getNumReady(), flushStart1, flushSize1, flushStart2, flushSize2);
+        _fifo.finishedRead(flushSize1 + flushSize2);
+        _latencyMonitor.reset();
+    }
 
     int numToRead = juce::jmin(_fifo.getNumReady(), destBuffer.getNumSamples());
     lastNumRead = numToRead;

@@ -18,15 +18,11 @@ public:
     explicit ProcessAudioCapture(dsp::AudioCapture& destinationCapture);
     ~ProcessAudioCapture() override;
 
-    // (Re)starts the process-ID resolution/tap-acquisition retry loop.
     void startCapture();
 
-    // Stops any in-progress retry loop and tears down the tap.
     void stopCapture();
 
 protected:
-    // Attempts to resolve the target process's OS process ID. Return false if it can't be
-    // resolved yet (e.g. the target process hasn't started) - the caller will retry.
     virtual bool getProcessID(int& outProcessID) = 0;
 
 private:
