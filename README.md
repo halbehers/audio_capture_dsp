@@ -21,6 +21,7 @@ retry/lifecycle base class for tapping an arbitrary OS process's audio.
   - [`audiocapture::ProcessAudioCapture`](#audiocaptureprocessaudiocapture)
   - [`audiocapture::ProcessList`](#audiocaptureprocesslist)
   - [`audiocapture::AudioOutputDeviceList`](#audiocaptureaudiooutputdevicelist)
+- [Testing](#testing)
 - [Limitations](#limitations)
 
 ---
@@ -274,6 +275,39 @@ outputDeviceBox.onChange = [&devices, &outputDeviceBox]
     // device for later use with juce::AudioDeviceManager::setAudioDeviceSetup(...).
 };
 ```
+
+---
+
+## Testing
+
+This repo ships its own self-contained Catch2 test suite under [`Tests/`](Tests), with a
+top-level `CMakeLists.txt` that fetches JUCE and Catch2 via [CPM](https://github.com/cpm-cmake/CPM.cmake)
+and registers this module the same way a consuming project would via `juce_add_module()`. It's
+purely additive - nothing a host project does when consuming this module via Projucer or CMake
+changes, and the module still has no build system of its own beyond this.
+
+```shell
+cmake -S . -B build
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+```
+
+To reuse a local JUCE checkout instead of letting CPM clone one fresh:
+
+```shell
+cmake -S . -B build -DCPM_JUCE_SOURCE=/path/to/your/JUCE
+```
+
+Coverage includes resampling/latency correctness and edge cases for `AudioCapture` and
+`LatencyMonitor` (rate changes, mono duplication, buffer overflow clamping, underrun handling, ring
+wraparound, SPSC producer/consumer stress tests), graceful degradation and the retry/give-up state
+machine for `SystemAudioTap`/`ProcessAudioCapture`, `ProcessList` enumeration/filtering, and
+`AudioOutputDeviceList`. A GitHub Actions workflow (`.github/workflows/tests.yml`) runs the suite on
+macOS, Windows, and Linux on every push/PR.
+
+Real hardware/live-process scenarios (an actual tap capturing another process's audio, real device
+hot-plug, etc.) aren't automatable in CI - see [`Tests/README.md`](Tests/README.md) for what's out
+of scope and the manual verification checklist for those cases.
 
 ---
 
