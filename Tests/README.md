@@ -19,8 +19,10 @@ cmake -S . -B build -DCPM_JUCE_SOURCE=/path/to/your/JUCE
 ```
 
 The `ProcessAudioCapture` retry-exhaustion test takes ~16 real seconds on platforms where
-`SystemAudioTap::isSupported()` is true (it waits out the full 60-retry/250ms-interval give-up
-cycle) - expect the full suite to take ~20-25s rather than being instant.
+`SystemAudioTap::isSupported()` is true (it polls until the full 60-retry/250ms-interval give-up
+cycle completes, up to a generous 60s hard timeout to tolerate slow/throttled CI runners where
+`juce::Timer` can tick noticeably slower than its nominal interval) - expect the full suite to take
+~20-25s locally rather than being instant, and possibly longer on a loaded CI runner.
 
 ## What's covered automatically
 

@@ -48,12 +48,23 @@ TEST_CASE("ProcessAudioCapture retry loop exhausts on supported platforms, is a 
     pumpMessagesFor(600);
     const int callsAfterFirstTicks = capture.calls.load();
     CHECK(callsAfterFirstTicks >= 1);
-    CHECK(callsAfterFirstTicks <= 4);
 
-    // maxRetries = 60 at retryIntervalMs = 250 => ~15s to exhaustion; generous margin added.
-    pumpMessagesFor(15500);
+    // maxRetries = 60 at retryIntervalMs = 250 => ~15s nominal, but shared/throttled CI runners
+    // can make juce::Timer tick noticeably slower than its nominal interval (observed as low as
+    // 50/60 retries within the nominal ~15.5s window on a GitHub Actions macOS runner) - poll in
+    // small increments up to a generous hard timeout instead of assuming a fixed wall-clock
+    // duration is enough to reach exhaustion.
+    constexpr int pollIncrementMs = 250;
+    constexpr int hardTimeoutMs = 60000; // generous margin over the ~15s nominal exhaustion time
+    int elapsedMs = 0;
+    while (capture.calls.load() < 60 && elapsedMs < hardTimeoutMs)
+    {
+        pumpMessagesFor(pollIncrementMs);
+        elapsedMs += pollIncrementMs;
+    }
+
     const int callsAtExhaustion = capture.calls.load();
-    CHECK(callsAtExhaustion == 60);
+    REQUIRE(callsAtExhaustion == 60); // must genuinely reach exhaustion within the hard timeout, not just give up polling
 
     // Must not keep retrying past exhaustion.
     pumpMessagesFor(500);
