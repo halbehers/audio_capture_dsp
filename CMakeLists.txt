@@ -8,6 +8,16 @@ set(JUCE_VERSION 8.0.14)
 set(LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Libs")
 set(CMAKE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/CMake")
 
+# This file exists so this repo is independently buildable/testable on its own - but when fetched
+# as a dependency by a consuming project (e.g. via CPM + juce_add_module(), as app_in_daw does),
+# that project already calls juce_add_module() on this same source directory itself, so doing it
+# again here too collides ("add_library cannot create target ... because another target with the
+# same name already exists"). Only self-register when this really is the top-level CMake project
+# being configured, i.e. someone is building/testing this repo standalone.
+if (NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    return()
+endif ()
+
 include(${CMAKE_DIR}/cpm.cmake)
 
 cpmaddpackage(
