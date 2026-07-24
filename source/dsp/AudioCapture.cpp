@@ -57,14 +57,20 @@ void AudioCapture::pushAudioBlock(const float* const* channelData, int numChanne
     _pendingCount += samplesToAppend;
 
     double speedRatio = sourceSampleRate / _targetSampleRate; // input samples consumed per output sample
+    lastSpeedRatio = speedRatio;
+    lastPendingCountBeforeResample = _pendingCount;
+
     int numOutputSamples = (int) std::floor((double) _pendingCount / speedRatio);
     numOutputSamples = std::min(numOutputSamples, maxPendingSamples);
+    lastNumOutputSamplesRequested = numOutputSamples;
 
     if (numOutputSamples <= 0)
         return;
 
     int usedLeft = _interpolatorLeft.process(speedRatio, _pendingLeft, _resampledLeft, numOutputSamples);
     int usedRight = _interpolatorRight.process(speedRatio, _pendingRight, _resampledRight, numOutputSamples);
+    lastInterpolatorUsedLeft = usedLeft;
+    lastInterpolatorUsedRight = usedRight;
     int used = std::max(usedLeft, usedRight);
 
     int remaining = _pendingCount - used;
@@ -75,8 +81,12 @@ void AudioCapture::pushAudioBlock(const float* const* channelData, int numChanne
     }
     _pendingCount = remaining;
 
+    lastFifoFreeSpaceBeforeWrite = _fifo.getFreeSpace();
+
     int start1, size1, start2, size2;
     _fifo.prepareToWrite(numOutputSamples, start1, size1, start2, size2);
+    lastFifoWriteSize1 = size1;
+    lastFifoWriteSize2 = size2;
 
     auto writeChunk = [&](int destStart, int srcOffset, int n)
     {

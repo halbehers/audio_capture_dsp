@@ -39,6 +39,20 @@ public:
     std::atomic<float> lastWrittenBlockPeak { 0.0f };
     std::atomic<float> lastReadBlockPeak { 0.0f };
 
+    // Finer-grained pushAudioBlock() diagnostics - added to chase a CI-only (unreproducible
+    // locally in any build/architecture/dependency-version combination tried) failure where the
+    // push completes (totalBlocksReceived increments, correct peak recorded) but the FIFO ends up
+    // empty on the read side. These surface every intermediate value between "resampled the
+    // pushed block" and "recorded it as available", to find exactly which step comes up empty.
+    std::atomic<double> lastSpeedRatio { 0.0 };
+    std::atomic<int> lastPendingCountBeforeResample { 0 };
+    std::atomic<int> lastNumOutputSamplesRequested { 0 };
+    std::atomic<int> lastInterpolatorUsedLeft { 0 };
+    std::atomic<int> lastInterpolatorUsedRight { 0 };
+    std::atomic<int> lastFifoFreeSpaceBeforeWrite { 0 };
+    std::atomic<int> lastFifoWriteSize1 { 0 };
+    std::atomic<int> lastFifoWriteSize2 { 0 };
+
 private:
     static constexpr int fifoCapacity = 1 << 16;
     static constexpr int maxPendingSamples = 1 << 14;
