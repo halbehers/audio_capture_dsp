@@ -17,7 +17,17 @@ void AudioCapture::prepare(double targetSampleRate)
     _fifo.reset();
     _latencyMonitor.reset();
 
-    _flushBacklogOnNextProcess = true;
+    // See process()'s use of this flag: the device (especially an external/USB interface) may
+    // take a while after this point to actually start delivering real audio callbacks, and the
+    // producer keeps running the whole time - flush whatever accumulates during that gap too,
+    // rather than delivering it as one already-late backlog on the first real process() call.
+    //
+    // Only do this if the pipeline was already live (blocks pushed before this prepare() call) -
+    // i.e. this is a mid-capture device switch re-invoking prepare(), not the very first prepare()
+    // before capture has started at all, where any backlog by the first process() call is
+    // legitimate, expected startup latency rather than a device-switch artifact to discard.
+    if (totalBlocksReceived.load() > 0)
+        _flushBacklogOnNextProcess = true;
 }
 
 void AudioCapture::pushAudioBlock(const float* const* channelData, int numChannels, int numSamples, double sourceSampleRate)
