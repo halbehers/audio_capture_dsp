@@ -122,6 +122,7 @@ std::vector<ProcessInfo> ProcessList::getAllProcesses()
         {
             ProcessInfo info;
             info.processID = (int) entry.th32ProcessID;
+            info.parentProcessID = (int) entry.th32ParentProcessID;
             info.executablePath = getExecutablePath(entry.th32ProcessID);
 
             std::string exeName = wideToUtf8(entry.szExeFile, (int) wcslen(entry.szExeFile));

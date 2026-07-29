@@ -13,6 +13,7 @@ namespace audiocapture
 namespace
 {
     using Microsoft::WRL::ClassicCom;
+    using Microsoft::WRL::ComPtr;
     using Microsoft::WRL::FtmBase;
     using Microsoft::WRL::RuntimeClass;
     using Microsoft::WRL::RuntimeClassFlags;
@@ -77,6 +78,8 @@ struct SystemAudioTap::Impl
 
     AudioCallback callback;
     bool running = false;
+
+    bool comInitializedHere = false;
 };
 
 SystemAudioTap::SystemAudioTap() : _impl(std::make_unique<Impl>()) {}
@@ -148,6 +151,12 @@ void SystemAudioTap::stop()
 
     _impl->callback = nullptr;
     _impl->running = false;
+
+    if (_impl->comInitializedHere)
+    {
+        CoUninitialize();
+        _impl->comInitializedHere = false;
+    }
 }
 
 void SystemAudioTap::Impl::CaptureThread::run()
@@ -207,6 +216,15 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
         DBG("SystemAudioTap: unsupported OS (requires Windows 10 build 20348+ / the 2020 Update)");
         return false;
     }
+
+    // Neither this function nor the rest of this file initialized COM before this point despite
+    // relying on it throughout (ActivateAudioInterfaceAsync below) - it "worked" only because
+    // something else in the process happened to already initialize it as a side effect.
+    // SUCCEEDED() covers both a fresh init (S_OK) and "already initialized with the same apartment
+    // model" (S_FALSE); RPC_E_CHANGED_MODE (a different apartment already set by someone else)
+    // isn't SUCCEEDED, but COM is still usable on this thread regardless - comInitializedHere just
+    // tracks whether *we're* the ones responsible for the matching CoUninitialize() in stop().
+    _impl->comInitializedHere = SUCCEEDED(CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED));
 
     AUDIOCLIENT_ACTIVATION_PARAMS activationParams {};
     activationParams.ActivationType = AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK;
