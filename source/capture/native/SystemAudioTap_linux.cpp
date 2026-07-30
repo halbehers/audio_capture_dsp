@@ -42,6 +42,8 @@ struct SystemAudioTap::Impl
 
     AudioCallback callback;
     bool running = false;
+
+    juce::String lastError;
 };
 
 namespace
@@ -132,6 +134,11 @@ SystemAudioTap::~SystemAudioTap()
     stop();
 }
 
+juce::String SystemAudioTap::getLastError() const
+{
+    return _impl->lastError;
+}
+
 bool SystemAudioTap::isSupported()
 {
     // Unlike the mac/Windows checks (both cheap, static "is the OS new enough" queries), "supported"
@@ -217,10 +224,12 @@ void SystemAudioTap::stop()
 bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
 {
     stop();
+    _impl->lastError.clear();
 
     if (! isSupported())
     {
-        DBG("SystemAudioTap: unsupported (no reachable PipeWire daemon)");
+        _impl->lastError = "Unsupported (no reachable PipeWire daemon)";
+        DBG("SystemAudioTap: " << _impl->lastError);
         return false;
     }
 
@@ -232,7 +241,8 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
     _impl->threadLoop = pw_thread_loop_new("SystemAudioTap", nullptr);
     if (_impl->threadLoop == nullptr || pw_thread_loop_start(_impl->threadLoop) != 0)
     {
-        DBG("SystemAudioTap: failed to start PipeWire thread loop");
+        _impl->lastError = "Failed to start PipeWire thread loop";
+        DBG("SystemAudioTap: " << _impl->lastError);
         return false;
     }
 
@@ -243,7 +253,8 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
 
     if (_impl->core == nullptr)
     {
-        DBG("SystemAudioTap: pw_context_connect failed");
+        _impl->lastError = "pw_context_connect failed";
+        DBG("SystemAudioTap: " << _impl->lastError);
         pw_thread_loop_unlock(_impl->threadLoop);
         stop();
         return false;
@@ -257,7 +268,8 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
     _impl->registry = pw_core_get_registry(_impl->core, PW_VERSION_REGISTRY, 0);
     if (_impl->registry == nullptr)
     {
-        DBG("SystemAudioTap: pw_core_get_registry failed");
+        _impl->lastError = "pw_core_get_registry failed";
+        DBG("SystemAudioTap: " << _impl->lastError);
         pw_thread_loop_unlock(_impl->threadLoop);
         stop();
         return false;
@@ -277,7 +289,8 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
 
     if (! _impl->resolved)
     {
-        DBG("SystemAudioTap: no PipeWire node found for pid " << targetProcessID);
+        _impl->lastError = "No PipeWire node found for pid " + juce::String(targetProcessID);
+        DBG("SystemAudioTap: " << _impl->lastError);
         pw_thread_loop_unlock(_impl->threadLoop);
         stop();
         return false;
@@ -292,7 +305,8 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
     _impl->stream = pw_stream_new(_impl->core, "AudioCaptureDSP-Capture", props);
     if (_impl->stream == nullptr)
     {
-        DBG("SystemAudioTap: pw_stream_new failed");
+        _impl->lastError = "pw_stream_new failed";
+        DBG("SystemAudioTap: " << _impl->lastError);
         pw_thread_loop_unlock(_impl->threadLoop);
         stop();
         return false;
@@ -315,7 +329,8 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
 
     if (connectResult != 0)
     {
-        DBG("SystemAudioTap: pw_stream_connect failed (" << connectResult << ")");
+        _impl->lastError = "pw_stream_connect failed (" + juce::String(connectResult) + ")";
+        DBG("SystemAudioTap: " << _impl->lastError);
         pw_thread_loop_unlock(_impl->threadLoop);
         stop();
         return false;

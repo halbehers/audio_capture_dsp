@@ -49,6 +49,7 @@ namespace
         HRESULT result = E_FAIL;
         IAudioClient* audioClient = nullptr;
     };
+
 }
 
 struct SystemAudioTap::Impl
@@ -80,6 +81,8 @@ struct SystemAudioTap::Impl
     bool running = false;
 
     bool comInitializedHere = false;
+
+    juce::String lastError;
 };
 
 SystemAudioTap::SystemAudioTap() : _impl(std::make_unique<Impl>()) {}
@@ -87,6 +90,11 @@ SystemAudioTap::SystemAudioTap() : _impl(std::make_unique<Impl>()) {}
 SystemAudioTap::~SystemAudioTap()
 {
     stop();
+}
+
+juce::String SystemAudioTap::getLastError() const
+{
+    return _impl->lastError;
 }
 
 bool SystemAudioTap::isSupported()
@@ -210,10 +218,12 @@ void SystemAudioTap::Impl::CaptureThread::run()
 bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
 {
     stop();
+    _impl->lastError.clear();
 
     if (! isSupported())
     {
-        DBG("SystemAudioTap: unsupported OS (requires Windows 10 build 20348+ / the 2020 Update)");
+        _impl->lastError = "Unsupported OS (requires Windows 10 build 20348+ / the 2020 Update)";
+        DBG("SystemAudioTap: " << _impl->lastError);
         return false;
     }
 
@@ -239,7 +249,11 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
     auto completionHandler = Microsoft::WRL::Make<ActivationCompletionHandler>();
     completionHandler->completedEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     if (completionHandler->completedEvent == nullptr)
+    {
+        _impl->lastError = "CreateEventW failed for the activation completion event (error=" + juce::String((int) GetLastError()) + ")";
+        DBG("SystemAudioTap: " << _impl->lastError);
         return false;
+    }
 
     IActivateAudioInterfaceAsyncOperation* asyncOp = nullptr;
     HRESULT status = ActivateAudioInterfaceAsync(VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
@@ -247,7 +261,8 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
 
     if (FAILED(status))
     {
-        DBG("SystemAudioTap: ActivateAudioInterfaceAsync failed (hr=" << (int) status << ")");
+        _impl->lastError = "ActivateAudioInterfaceAsync failed (hr=0x" + juce::String::toHexString((int) status) + ")";
+        DBG("SystemAudioTap: " << _impl->lastError);
         CloseHandle(completionHandler->completedEvent);
         return false;
     }
@@ -259,7 +274,8 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
 
     if (FAILED(completionHandler->result) || completionHandler->audioClient == nullptr)
     {
-        DBG("SystemAudioTap: process-loopback activation failed (hr=" << (int) completionHandler->result << ")");
+        _impl->lastError = "Process-loopback activation failed (hr=0x" + juce::String::toHexString((int) completionHandler->result) + ")";
+        DBG("SystemAudioTap: " << _impl->lastError);
         return false;
     }
 
@@ -283,7 +299,8 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
 
     if (FAILED(status))
     {
-        DBG("SystemAudioTap: IAudioClient::Initialize failed (hr=" << (int) status << ")");
+        _impl->lastError = "IAudioClient::Initialize failed (hr=0x" + juce::String::toHexString((int) status) + ")";
+        DBG("SystemAudioTap: " << _impl->lastError);
         _impl->audioClient->Release();
         _impl->audioClient = nullptr;
         return false;
@@ -292,7 +309,8 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
     _impl->captureEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
     if (_impl->captureEvent == nullptr || FAILED(_impl->audioClient->SetEventHandle(_impl->captureEvent)))
     {
-        DBG("SystemAudioTap: SetEventHandle failed");
+        _impl->lastError = "SetEventHandle failed";
+        DBG("SystemAudioTap: " << _impl->lastError);
         _impl->audioClient->Release();
         _impl->audioClient = nullptr;
         return false;
@@ -301,7 +319,8 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
     status = _impl->audioClient->GetService(IID_PPV_ARGS(&_impl->captureClient));
     if (FAILED(status))
     {
-        DBG("SystemAudioTap: GetService(IAudioCaptureClient) failed (hr=" << (int) status << ")");
+        _impl->lastError = "GetService(IAudioCaptureClient) failed (hr=0x" + juce::String::toHexString((int) status) + ")";
+        DBG("SystemAudioTap: " << _impl->lastError);
         CloseHandle(_impl->captureEvent);
         _impl->captureEvent = nullptr;
         _impl->audioClient->Release();
@@ -316,7 +335,8 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
     status = _impl->audioClient->Start();
     if (FAILED(status))
     {
-        DBG("SystemAudioTap: IAudioClient::Start failed (hr=" << (int) status << ")");
+        _impl->lastError = "IAudioClient::Start failed (hr=0x" + juce::String::toHexString((int) status) + ")";
+        DBG("SystemAudioTap: " << _impl->lastError);
         _impl->captureClient->Release();
         _impl->captureClient = nullptr;
         CloseHandle(_impl->captureEvent);
@@ -330,6 +350,15 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
     _impl->captureThread = std::make_unique<Impl::CaptureThread>();
     _impl->captureThread->impl = _impl.get();
     _impl->captureThread->startThread(juce::Thread::Priority::high);
+
+    // Unlike the mac backend (tapDescription.muteBehavior = CATapMuted), this is a pure copy tap -
+    // the browser's own audio still plays through the system's default output at the same time it's
+    // captured here, so Standalone (and the direct-output side of the VST3 bug) hears it twice.
+    // A mute-on-capture feature was attempted and reverted: see
+    // docs/WINDOWS_AUDIO_CAPTURE_MUTE_LIMITATION.md for why (WASAPI process-loopback reports
+    // AUDCLNT_BUFFERFLAGS_SILENT - meaning our own capture gets nothing - for as long as the
+    // target session's audible output is zero, via mute or volume, with no viable workaround
+    // available on a single-output-device machine).
 
     _impl->running = true;
     return true;

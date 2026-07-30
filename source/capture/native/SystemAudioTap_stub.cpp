@@ -26,6 +26,11 @@ bool SystemAudioTap::isRunning() const
     return _impl->running;
 }
 
+juce::String SystemAudioTap::getLastError() const
+{
+    return "Unsupported platform";
+}
+
 void SystemAudioTap::stop()
 {
 }

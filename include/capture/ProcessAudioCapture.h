@@ -22,6 +22,9 @@ public:
 
     void stopCapture();
 
+    // Passthrough to the underlying SystemAudioTap's last failure reason - see its own doc comment.
+    [[nodiscard]] juce::String getLastError() const { return _tap.getLastError(); }
+
 protected:
     virtual bool getProcessID(int& outProcessID) = 0;
 

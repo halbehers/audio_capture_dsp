@@ -24,6 +24,8 @@ struct SystemAudioTap::Impl
 
     AudioCallback callback;
     bool running = false;
+
+    juce::String lastError;
 };
 
 SystemAudioTap::SystemAudioTap() : _impl(std::make_unique<Impl>()) {}
@@ -31,6 +33,11 @@ SystemAudioTap::SystemAudioTap() : _impl(std::make_unique<Impl>()) {}
 SystemAudioTap::~SystemAudioTap()
 {
     stop();
+}
+
+juce::String SystemAudioTap::getLastError() const
+{
+    return _impl->lastError;
 }
 
 bool SystemAudioTap::isSupported()
@@ -104,16 +111,21 @@ namespace
 bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
 {
     stop();
+    _impl->lastError.clear();
 
     if (! isSupported())
     {
-        DBG("SystemAudioTap: unsupported OS (requires macOS 14.2+)");
+        _impl->lastError = "Unsupported OS (requires macOS 14.2+)";
+        DBG("SystemAudioTap: " << _impl->lastError);
         return false;
     }
 
     AudioObjectID processObjectID = kAudioObjectUnknown;
     if (! translatePIDToProcessObject((pid_t) targetProcessID, processObjectID))
+    {
+        _impl->lastError = "Could not translate pid " + juce::String(targetProcessID) + " to a process object";
         return false;
+    }
 
     CATapDescription* tapDescription = [[CATapDescription alloc] initStereoMixdownOfProcesses: @[ @(processObjectID) ]];
     tapDescription.UUID = [NSUUID UUID];
@@ -125,7 +137,8 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
     OSStatus status = AudioHardwareCreateProcessTap(tapDescription, &tapObjectID);
     if (status != noErr || tapObjectID == kAudioObjectUnknown)
     {
-        DBG("SystemAudioTap: AudioHardwareCreateProcessTap failed (status=" << (int) status << ")");
+        _impl->lastError = "AudioHardwareCreateProcessTap failed (status=" + juce::String((int) status) + ")";
+        DBG("SystemAudioTap: " << _impl->lastError);
         return false;
     }
 
@@ -145,7 +158,8 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
     status = AudioHardwareCreateAggregateDevice((__bridge CFDictionaryRef) aggregateDeviceDescription, &aggregateDeviceID);
     if (status != noErr || aggregateDeviceID == kAudioObjectUnknown)
     {
-        DBG("SystemAudioTap: AudioHardwareCreateAggregateDevice failed (status=" << (int) status << ")");
+        _impl->lastError = "AudioHardwareCreateAggregateDevice failed (status=" + juce::String((int) status) + ")";
+        DBG("SystemAudioTap: " << _impl->lastError);
         AudioHardwareDestroyProcessTap(tapObjectID);
         return false;
     }
@@ -221,7 +235,8 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
 
     if (status != noErr || ioProcID == nullptr)
     {
-        DBG("SystemAudioTap: AudioDeviceCreateIOProcIDWithBlock failed (status=" << (int) status << ")");
+        _impl->lastError = "AudioDeviceCreateIOProcIDWithBlock failed (status=" + juce::String((int) status) + ")";
+        DBG("SystemAudioTap: " << _impl->lastError);
         AudioHardwareDestroyAggregateDevice(aggregateDeviceID);
         AudioHardwareDestroyProcessTap(tapObjectID);
         _impl->aggregateDeviceID = kAudioObjectUnknown;
@@ -235,7 +250,8 @@ bool SystemAudioTap::start(int targetProcessID, AudioCallback callback)
     status = AudioDeviceStart(aggregateDeviceID, ioProcID);
     if (status != noErr)
     {
-        DBG("SystemAudioTap: AudioDeviceStart failed (status=" << (int) status << ")");
+        _impl->lastError = "AudioDeviceStart failed (status=" + juce::String((int) status) + ")";
+        DBG("SystemAudioTap: " << _impl->lastError);
         AudioDeviceDestroyIOProcID(aggregateDeviceID, ioProcID);
         AudioHardwareDestroyAggregateDevice(aggregateDeviceID);
         AudioHardwareDestroyProcessTap(tapObjectID);

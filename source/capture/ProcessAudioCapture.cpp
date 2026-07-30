@@ -52,7 +52,8 @@ void ProcessAudioCapture::timerCallback()
     if (++_retryCount >= maxRetries)
     {
         stopTimer();
-        DBG("ProcessAudioCapture: gave up starting SystemAudioTap after " << maxRetries << " attempts");
+        DBG("ProcessAudioCapture: gave up starting SystemAudioTap after " << maxRetries
+            << " attempts (last error: " << _tap.getLastError() << ")");
     }
 }
 

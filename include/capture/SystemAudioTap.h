@@ -27,6 +27,14 @@ public:
 
     bool isRunning() const;
 
+    // Describes why the most recent start() attempt failed (or why isRunning() became false),
+    // empty if the last attempt succeeded or none has been made yet. Every backend also still logs
+    // the same information via DBG() for local/attached-debugger use; this exists so callers
+    // embedded in a process nobody can attach a debugger to (e.g. a plugin loaded in a DAW) have
+    // some way to surface *why* capture isn't working, without this module taking on a dependency
+    // on any particular product's own logging.
+    [[nodiscard]] juce::String getLastError() const;
+
 private:
     struct Impl;
     std::unique_ptr<Impl> _impl;
