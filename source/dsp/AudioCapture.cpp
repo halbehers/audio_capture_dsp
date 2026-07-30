@@ -35,7 +35,16 @@ void AudioCapture::pushAudioBlock(const float* const* channelData, int numChanne
     if (channelData == nullptr || numChannels <= 0 || numSamples <= 0 || _targetSampleRate <= 0.0)
         return;
 
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+#endif
+    // Exact comparison is intentional: any change at all in source sample rate, however small,
+    // must reset the interpolators - there is no "close enough" here.
     if (sourceSampleRate != _lastSourceSampleRate)
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
     {
         _lastSourceSampleRate = sourceSampleRate;
         _pendingCount = 0;

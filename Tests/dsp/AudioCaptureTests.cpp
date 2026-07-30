@@ -148,7 +148,7 @@ TEST_CASE("AudioCapture::getCurrentLatencyMs returns 0 before any capture", "[Au
 
     juce::AudioBuffer<float> buffer(2, 256);
     capture.process(buffer);
-    CHECK(capture.getCurrentLatencyMs() == 0.0);
+    CHECK(capture.getCurrentLatencyMs() == Catch::Approx(0.0).margin(0.0));
 }
 
 TEST_CASE("AudioCapture::getCurrentLatencyMs is small right after an immediate drain", "[AudioCapture]")
@@ -208,7 +208,7 @@ TEST_CASE("AudioCapture::getCurrentLatencyMs settles back to 0 once fully draine
     juce::Thread::sleep(50);
     juce::AudioBuffer<float> emptyBuffer(2, 1);
     capture.process(emptyBuffer);
-    CHECK(capture.getCurrentLatencyMs() == 0.0);
+    CHECK(capture.getCurrentLatencyMs() == Catch::Approx(0.0).margin(0.0));
 }
 
 TEST_CASE("AudioCapture::getCurrentLatencyMs does not grow across repeated device-switch prepare() calls", "[AudioCapture]")
@@ -236,7 +236,7 @@ TEST_CASE("AudioCapture::getCurrentLatencyMs does not grow across repeated devic
 
         capture.process(buffer); // first process() call after the switch flushes that backlog
 
-        CHECK(capture.getCurrentLatencyMs() == 0.0);
+        CHECK(capture.getCurrentLatencyMs() == Catch::Approx(0.0).margin(0.0));
     }
 }
 
@@ -264,7 +264,7 @@ TEST_CASE("AudioCapture discards backlog accumulated during a mid-capture prepar
     juce::AudioBuffer<float> buffer(2, 1 << 16);
     const int numRead = capture.process(buffer);
     CHECK(numRead == 0);
-    CHECK(capture.getCurrentLatencyMs() == 0.0);
+    CHECK(capture.getCurrentLatencyMs() == Catch::Approx(0.0).margin(0.0));
 
     // Confirm the pipeline is genuinely still usable afterwards, not just left permanently empty.
     capture.pushAudioBlock(channelData, 2, 256, 48000.0);
@@ -420,7 +420,10 @@ TEST_CASE("AudioCapture::process leaves the untouched underrun tail alone", "[Au
         for (int i = numRead; i < buffer.getNumSamples(); ++i)
         {
             INFO("channel " << ch << " sample " << i);
-            CHECK(buffer.getSample(ch, i) == sentinel);
+            // Approx(...).margin(0.0) instead of == : the tail must be untouched bit-for-bit, not
+            // just close to the sentinel, but a raw == trips -Wfloat-equal inside Catch2's
+            // decomposition template.
+            CHECK(buffer.getSample(ch, i) == Catch::Approx(sentinel).margin(0.0));
         }
 }
 

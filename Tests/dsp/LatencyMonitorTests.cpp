@@ -1,3 +1,4 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <audio_capture_dsp/audio_capture_dsp.h>
@@ -9,7 +10,7 @@
 TEST_CASE("LatencyMonitor::consumeLatencyMs returns 0 before anything has been produced", "[LatencyMonitor]")
 {
     acdsp::LatencyMonitor monitor;
-    CHECK(monitor.consumeLatencyMs(0) == 0.0);
+    CHECK(monitor.consumeLatencyMs(0) == Catch::Approx(0.0).margin(0.0));
 }
 
 TEST_CASE("LatencyMonitor::consumeLatencyMs reflects real dwell time for produced-but-unconsumed units", "[LatencyMonitor]")
@@ -33,7 +34,7 @@ TEST_CASE("LatencyMonitor::consumeLatencyMs settles at 0 once fully caught up an
 
     // Regression guard: idling once caught up (nothing new produced or consumed) must not keep
     // dwelling against an increasingly stale production timestamp.
-    CHECK(monitor.consumeLatencyMs(0) == 0.0);
+    CHECK(monitor.consumeLatencyMs(0) == Catch::Approx(0.0).margin(0.0));
 }
 
 TEST_CASE("LatencyMonitor::reset() clears prior history so measurement starts fresh", "[LatencyMonitor]")
@@ -45,7 +46,7 @@ TEST_CASE("LatencyMonitor::reset() clears prior history so measurement starts fr
 
     // Without a reset, this stale production record would report ~50ms of dwell time.
     monitor.reset();
-    CHECK(monitor.consumeLatencyMs(0) == 0.0);
+    CHECK(monitor.consumeLatencyMs(0) == Catch::Approx(0.0).margin(0.0));
 
     // Confirm the monitor is genuinely usable again afterwards, not just permanently zeroed.
     monitor.recordProduced(128);
@@ -59,7 +60,7 @@ TEST_CASE("LatencyMonitor::recordProduced(<=0) is a no-op", "[LatencyMonitor]")
     monitor.recordProduced(-5);
 
     // Neither call should have armed the "something was produced" sentinel.
-    CHECK(monitor.consumeLatencyMs(0) == 0.0);
+    CHECK(monitor.consumeLatencyMs(0) == Catch::Approx(0.0).margin(0.0));
 }
 
 TEST_CASE("LatencyMonitor::consumeLatencyMs stays finite and non-negative across ring wraparound", "[LatencyMonitor]")
